@@ -1,66 +1,51 @@
 from langchain.tools import tool
-import yfinance as yf #yfinance is just a Python library not website like tavily
+#import yfinance as yf #yfinance is just a Python library not website like tavily
 from langchain_mistralai import ChatMistralAI
 from tavily import TavilyClient
+import finnhub
 from dotenv import load_dotenv
 import os
 import time
 
+
 load_dotenv()
+client = finnhub.Client(
+    api_key=os.getenv("FINNHUB_API_KEY")
+)
 
 #1st tool - Fetches real-time stock price and market performance data.
 @tool
-def get_stock_price(ticker: str) -> dict:
+def get_stock_price(ticker: str) -> str:
     """
-    Fetch current stock price and basic market information.
+    Fetch current stock price.
     """
 
     try:
-        time.sleep(2)
 
-        data = yf.download(
-            ticker,
-            period="5d",
-            interval="1d",
-            progress=False,
-            threads=False
-        )
+        quote = client.quote(ticker)
 
-        if data.empty:
-            return f"No price data found for {ticker}"
+        current = quote["c"]
+        previous = quote["pc"]
 
-        latest = data.iloc[-1]
+        change = round(current - previous, 2)
 
-        current_price = float(latest["Close"].iloc[0])
-
-        previous_close = (
-            float(data.iloc[-2]["Close"].iloc[0])
-            if len(data) > 1
-            else current_price
-        )
-
-        change = round(current_price - previous_close, 2)
-
-        change_percentage = round(
-            (change / previous_close) * 100,
+        percent = round(
+            (change / previous) * 100,
             2
         )
 
-
         return (
             f"Ticker: {ticker}\n"
-            f"Current Price: {current_price}\n"
-            f"Previous Close: {previous_close}\n"
+            f"Current Price: {current}\n"
+            f"Previous Close: {previous}\n"
             f"Change: {change}\n"
-            f"Change Percent: {change_percentage}%\n"
-            f"Day High: {float(latest['High'].iloc[0])}\n"
-            f"Day Low: {float(latest['Low'].iloc[0])}\n"
-            f"Volume: {int(latest['Volume'].iloc[0])}"
+            f"Change Percent: {percent}%\n"
+            f"Day High: {quote['h']}\n"
+            f"Day Low: {quote['l']}"
         )
 
-
     except Exception as e:
-        return f"Could not fetch stock price: {e}"
+        return f"Could not fetch price: {e}"
 
 #get_stock_price.invoke("INFY.NS")
 
@@ -74,28 +59,29 @@ def get_company_details(ticker: str) -> str:
 
     try:
 
-        time.sleep(3)
+        profile = client.company_profile2(
+            symbol=ticker
+        )
 
-        stock = yf.Ticker(ticker)
+        metrics = client.company_basic_financials(
+            ticker,
+            "all"
+        )
 
-        info = stock.get_info()
+        data = metrics["metric"]
 
 
         return (
-            f"Company: {info.get('longName','N/A')}\n"
+            f"Company: {profile.get('name','N/A')}\n"
             f"Ticker: {ticker}\n"
-            f"Sector: {info.get('sector','N/A')}\n"
-            f"Industry: {info.get('industry','N/A')}\n"
-            f"P/E Ratio: {info.get('trailingPE','N/A')}\n"
-            f"Forward P/E: {info.get('forwardPE','N/A')}\n"
-            f"EPS: {info.get('trailingEps','N/A')}\n"
-            f"Revenue Growth: {info.get('revenueGrowth','N/A')}\n"
-            f"Profit Margin: {info.get('profitMargins','N/A')}\n"
-            f"ROE: {info.get('returnOnEquity','N/A')}\n"
-            f"Debt To Equity: {info.get('debtToEquity','N/A')}\n"
-            f"Dividend Yield: {info.get('dividendYield','N/A')}"
+            f"Country: {profile.get('country','N/A')}\n"
+            f"Exchange: {profile.get('exchange','N/A')}\n"
+            f"Industry: {profile.get('finnhubIndustry','N/A')}\n"
+            f"P/E Ratio: {data.get('peNormalizedAnnual','N/A')}\n"
+            f"EPS: {data.get('epsNormalizedAnnual','N/A')}\n"
+            f"52 Week High: {data.get('52WeekHigh','N/A')}\n"
+            f"52 Week Low: {data.get('52WeekLow','N/A')}"
         )
-
 
     except Exception as e:
         return f"Could not fetch fundamentals: {e}"

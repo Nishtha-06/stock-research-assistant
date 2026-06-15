@@ -11,3 +11,4 @@ python-dotenv
 duckduckgo-search
 rich
 tavily-python
+finnhub-python

@@ -4,6 +4,7 @@ from langchain_mistralai import ChatMistralAI
 from tavily import TavilyClient
 from dotenv import load_dotenv
 import os
+import time
 
 load_dotenv()
 
@@ -11,60 +12,55 @@ load_dotenv()
 @tool
 def get_stock_price(ticker: str) -> dict:
     """
-    Fetch current stock price and basic market information for a stock {ticker}.
-
-    Supports both US and Indian stocks.
-
-    Examples:
-    - AAPL
-    - MSFT
-    - RELIANCE.NS
-    - TCS.NS
-
-    Returns current price, previous close, price change,
-    day's range, market cap, and trading volume.
+    Fetch current stock price and basic market information.
     """
 
     try:
-        #create yahoo finance object
-        stock = yf.Ticker(ticker)
+        time.sleep(2)
 
-        #Get stock information
-        info = stock.info
+        data = yf.download(
+            ticker,
+            period="5d",
+            interval="1d",
+            progress=False,
+            threads=False
+        )
 
-        current_price = info.get("currentPrice")
-        previous_close = info.get("previousClose") #where it ended yesterday
-        
-        #Calculate change and percentage change
-        if current_price is not None and previous_close is not None:
-            change = round(current_price - previous_close,2)
-            change_percentage = round(
-                (change/previous_close) * 100,2)
-            
-        else:
-            change = "N/A"
-            change_percentage = "N/A"
+        if data.empty:
+            return f"No price data found for {ticker}"
 
-        # Format output as readable text for the agent
+        latest = data.iloc[-1]
+
+        current_price = float(latest["Close"].iloc[0])
+
+        previous_close = (
+            float(data.iloc[-2]["Close"].iloc[0])
+            if len(data) > 1
+            else current_price
+        )
+
+        change = round(current_price - previous_close, 2)
+
+        change_percentage = round(
+            (change / previous_close) * 100,
+            2
+        )
+
+
         return (
-            f"Company: {info.get('longName','N/A')}\n"
             f"Ticker: {ticker}\n"
-            f"Current Price: {current_price} {info.get('currency', '')}\n"
+            f"Current Price: {current_price}\n"
             f"Previous Close: {previous_close}\n"
             f"Change: {change}\n"
             f"Change Percent: {change_percentage}%\n"
-            f"Day High: {info.get('dayHigh', 'N/A')}\n"
-            f"Day Low: {info.get('dayLow', 'N/A')}\n" #the lowest price the stock touched today.
-            f"52 Week High: {info.get('fiftyTwoWeekHigh', 'N/A')}\n" #the highest price in the last 1 year (52 weeks)
-            f"52 Week Low: {info.get('fiftyTwoWeekLow', 'N/A')}\n"
-            f"Market Cap: {info.get('marketCap', 'N/A')}\n"
-            f"Volume: {info.get('volume', 'N/A')}\n" #number of shares traded today.
-            f"Exchange: {info.get('exchange', 'N/A')}" # which stock market it's listed on (e.g., NSE, NASDAQ, NYSE, BSE).
-
+            f"Day High: {float(latest['High'].iloc[0])}\n"
+            f"Day Low: {float(latest['Low'].iloc[0])}\n"
+            f"Volume: {int(latest['Volume'].iloc[0])}"
         )
-    
+
+
     except Exception as e:
-        return f"Could not fetch stock price data: {str(e)}"
+        return f"Could not fetch stock price: {e}"
 
 #get_stock_price.invoke("INFY.NS")
 
@@ -73,34 +69,36 @@ def get_stock_price(ticker: str) -> dict:
 @tool
 def get_company_details(ticker: str) -> str:
     """
-    Fetch important fundamental information for a stock {ticker}.
-
-    Returns valuation metrics, profitability metrics,
-    growth metrics, and company details.
+    Fetch company fundamentals.
     """
 
     try:
-        stock = yf.Ticker(ticker)
-        info = stock.info
 
-        return(
-            f"Company: {info.get('longName', 'N/A')}\n"
+        time.sleep(3)
+
+        stock = yf.Ticker(ticker)
+
+        info = stock.get_info()
+
+
+        return (
+            f"Company: {info.get('longName','N/A')}\n"
             f"Ticker: {ticker}\n"
-            f"Sector: {info.get('sector', 'N/A')}\n"
-            f"Industry: {info.get('industry', 'N/A')}\n"
-            f"P/E Ratio: {info.get('trailingPE', 'N/A')}\n"
-            f"Forward P/E: {info.get('forwardPE', 'N/A')}\n"
-            f"EPS: {info.get('trailingEps', 'N/A')}\n"
-            f"Revenue Growth: {info.get('revenueGrowth', 'N/A')}\n"
-            f"Profit Margins: {info.get('profitMargins', 'N/A')}\n"
-            f"Return on Equity: {info.get('returnOnEquity', 'N/A')}\n"
-            f"Debt to Equity: {info.get('debtToEquity', 'N/A')}\n"
-            f"Dividend Yield: {info.get('dividendYield', 'N/A')}"
+            f"Sector: {info.get('sector','N/A')}\n"
+            f"Industry: {info.get('industry','N/A')}\n"
+            f"P/E Ratio: {info.get('trailingPE','N/A')}\n"
+            f"Forward P/E: {info.get('forwardPE','N/A')}\n"
+            f"EPS: {info.get('trailingEps','N/A')}\n"
+            f"Revenue Growth: {info.get('revenueGrowth','N/A')}\n"
+            f"Profit Margin: {info.get('profitMargins','N/A')}\n"
+            f"ROE: {info.get('returnOnEquity','N/A')}\n"
+            f"Debt To Equity: {info.get('debtToEquity','N/A')}\n"
+            f"Dividend Yield: {info.get('dividendYield','N/A')}"
         )
-    
+
+
     except Exception as e:
-        return f"Could not fetch fundamentals: {str(e)}"
-    
+        return f"Could not fetch fundamentals: {e}"
 #get_company_details.invoke("AAPL")
 
 

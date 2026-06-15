@@ -1,38 +1,24 @@
 from langchain.tools import tool
-#import yfinance as yf #yfinance is just a Python library not website like tavily
-from langchain_mistralai import ChatMistralAI
-from tavily import TavilyClient
 import finnhub
+from tavily import TavilyClient
 from dotenv import load_dotenv
 import os
-import time
-
 
 load_dotenv()
-client = finnhub.Client(
-    api_key=os.getenv("FINNHUB_API_KEY")
-)
 
-#1st tool - Fetches real-time stock price and market performance data.
+# ── Tool 1 — Stock price ───────────────────────────────────────────────────────
 @tool
 def get_stock_price(ticker: str) -> str:
-    """
-    Fetch current stock price.
-    """
-
+    """Fetch current stock price and daily performance for a ticker."""
     try:
+        # Client created HERE — not at module level
+        client = finnhub.Client(api_key=os.getenv("FINNHUB_API_KEY"))
 
         quote = client.quote(ticker)
-
         current = quote["c"]
         previous = quote["pc"]
-
         change = round(current - previous, 2)
-
-        percent = round(
-            (change / previous) * 100,
-            2
-        )
+        percent = round((change / previous) * 100, 2)
 
         return (
             f"Ticker: {ticker}\n"
@@ -43,58 +29,42 @@ def get_stock_price(ticker: str) -> str:
             f"Day High: {quote['h']}\n"
             f"Day Low: {quote['l']}"
         )
-
     except Exception as e:
         return f"Could not fetch price: {e}"
 
-#get_stock_price.invoke("INFY.NS")
 
-#2nd tool - it shows that company is good or not
-
+# ── Tool 2 — Company fundamentals ─────────────────────────────────────────────
 @tool
 def get_company_details(ticker: str) -> str:
-    """
-    Fetch company fundamentals.
-    """
-
+    """Fetch company profile and key financial metrics for a ticker."""
     try:
+        # Client created HERE — not at module level
+        client = finnhub.Client(api_key=os.getenv("FINNHUB_API_KEY"))
 
-        profile = client.company_profile2(
-            symbol=ticker
-        )
-
-        metrics = client.company_basic_financials(
-            ticker,
-            "all"
-        )
-
+        profile = client.company_profile2(symbol=ticker)
+        metrics = client.company_basic_financials(ticker, "all")
         data = metrics["metric"]
 
-
         return (
-            f"Company: {profile.get('name','N/A')}\n"
+            f"Company: {profile.get('name', 'N/A')}\n"
             f"Ticker: {ticker}\n"
-            f"Country: {profile.get('country','N/A')}\n"
-            f"Exchange: {profile.get('exchange','N/A')}\n"
-            f"Industry: {profile.get('finnhubIndustry','N/A')}\n"
-            f"P/E Ratio: {data.get('peNormalizedAnnual','N/A')}\n"
-            f"EPS: {data.get('epsNormalizedAnnual','N/A')}\n"
-            f"52 Week High: {data.get('52WeekHigh','N/A')}\n"
-            f"52 Week Low: {data.get('52WeekLow','N/A')}"
+            f"Country: {profile.get('country', 'N/A')}\n"
+            f"Exchange: {profile.get('exchange', 'N/A')}\n"
+            f"Industry: {profile.get('finnhubIndustry', 'N/A')}\n"
+            f"P/E Ratio: {data.get('peNormalizedAnnual', 'N/A')}\n"
+            f"EPS: {data.get('epsNormalizedAnnual', 'N/A')}\n"
+            f"52 Week High: {data.get('52WeekHigh', 'N/A')}\n"
+            f"52 Week Low: {data.get('52WeekLow', 'N/A')}"
         )
-
     except Exception as e:
         return f"Could not fetch fundamentals: {e}"
-#get_company_details.invoke("AAPL")
 
 
-#3rd agent - Collects the latest news and updates related to a company or stock.
-tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
-
+# ── Tool 3 — Stock news ────────────────────────────────────────────────────────
 @tool
 def get_stock_news(company: str) -> str:
     """
-    Search for the latest news related to a {company} or stock.
+    Search for the latest news related to a company or stock.
 
     Examples:
     - Apple
@@ -102,18 +72,18 @@ def get_stock_news(company: str) -> str:
     - Reliance Industries
     - TCS
 
-    Returns the top 5 recent news articles with title,
-    source URL, and short summary.
+    Returns the top 5 recent news articles with title, URL, and short summary.
     """
-
     try:
+        # Client created HERE — not at module level
+        tavily = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
         result = tavily.search(
             query=f"Latest stock news about {company}",
             max_results=5
         )
 
         news = []
-
         for article in result["results"]:
             news.append(
                 f"Title: {article['title']}\n"
@@ -124,7 +94,3 @@ def get_stock_news(company: str) -> str:
         return "\n\n--------------\n\n".join(news)
     except Exception as e:
         return f"Could not fetch stock news: {str(e)}"
-    
-
-#get_stock_news.invoke("Infosys")
-
